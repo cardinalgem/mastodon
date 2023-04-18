@@ -278,7 +278,7 @@ module AccountInteractions
       followers.where(Account.arel_table[:uri].matches("#{Account.sanitize_sql_like(url_prefix)}/%", false, true)).or(followers.where(uri: url_prefix)).pluck_each(:uri) do |uri|
         Xorcist.xor!(digest, Digest::SHA256.digest(uri))
       end
-      digest.unpack('H*')[0]
+      digest.unpack1('H*')
     end
   end
 
@@ -288,8 +288,23 @@ module AccountInteractions
       followers.where(domain: nil).pluck_each(:username) do |username|
         Xorcist.xor!(digest, Digest::SHA256.digest(ActivityPub::TagManager.instance.uri_for_username(username)))
       end
-      digest.unpack('H*')[0]
+      digest.unpack1('H*')
     end
+  end
+
+  def relations_map(account_ids, domains = nil, **options)
+    relations = {
+      blocked_by: Account.blocked_by_map(account_ids, id),
+      following: Account.following_map(account_ids, id),
+    }
+
+    return relations if options[:skip_blocking_and_muting]
+
+    relations.merge!({
+      blocking: Account.blocking_map(account_ids, id),
+      muting: Account.muting_map(account_ids, id),
+      domain_blocking_by_domain: Account.domain_blocking_map_by_domain(domains, id),
+    })
   end
 
   private
